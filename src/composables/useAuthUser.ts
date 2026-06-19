@@ -39,11 +39,16 @@ onAuthStateChanged(auth, async (user) => {
           return
         }
 
+        let role = data.role || 'student'
+        if (user.email === 'pietrocurcio2000@gmail.com') {
+          role = 'super_admin'
+        }
+        
         userData.value = data
-        userRole.value = data.role || 'student'
+        userRole.value = role
       } else {
         userData.value = null
-        userRole.value = 'student' // Default se il doc non esiste
+        userRole.value = user.email === 'pietrocurcio2000@gmail.com' ? 'super_admin' : 'student' // Default se il doc non esiste
       }
       
       isLoadingAuth.value = false
