@@ -40,9 +40,13 @@
                     <p class="font-medium text-gray-800 dark:text-white/90">
                       {{ student.displayName || (student.firstName ? student.firstName + ' ' + (student.lastName || '') : '') || 'Nome non inserito' }}
                     </p>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       {{ student.email || 'Email non disponibile' }}
                       <span v-if="student.license" class="ml-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400">Pat. {{ student.license }}</span>
+                      <span v-if="isExpiring(student)" class="ml-2 inline-flex items-center gap-0.5 rounded bg-error-50 px-1.5 py-0.5 text-[10px] font-medium text-error-700 border border-error-200 dark:bg-error-500/10 dark:text-error-400 dark:border-error-800">
+                        <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Scadenza!
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -90,11 +94,13 @@ interface Student {
   associated_at?: any;
   created_at?: any;
   last_login?: any;
+  pink_slip_issue_date?: string;
+  medical_cert_expiry?: string;
 }
 
 const students = ref<Student[]>([])
 const isStatsModalOpen = ref(false)
-const selectedStudent = ref<Student | null>(null)
+const selectedStudent = ref<Student | undefined>(undefined)
 
 let unsubscribe: (() => void) | null = null
 
@@ -105,9 +111,7 @@ const openStatsModal = (student: Student) => {
 
 const closeStatsModal = () => {
   isStatsModalOpen.value = false
-  setTimeout(() => {
-    selectedStudent.value = null
-  }, 300)
+  selectedStudent.value = undefined
 }
 
 const formatDate = (timestamp: any) => {
@@ -118,6 +122,27 @@ const formatDate = (timestamp: any) => {
     month: '2-digit',
     year: 'numeric'
   }).format(date)
+}
+
+const isExpiring = (student: Student) => {
+  const now = new Date()
+  const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
+
+  // Controlla Scadenza Certificato Medico
+  if (student.medical_cert_expiry) {
+    const medExpiry = new Date(student.medical_cert_expiry)
+    if (medExpiry.getTime() - now.getTime() < thirtyDaysMs) return true
+  }
+
+  // Controlla Scadenza Foglio Rosa (Dura 1 anno)
+  if (student.pink_slip_issue_date) {
+    const issueDate = new Date(student.pink_slip_issue_date)
+    const pinkSlipExpiry = new Date(issueDate)
+    pinkSlipExpiry.setFullYear(pinkSlipExpiry.getFullYear() + 1)
+    if (pinkSlipExpiry.getTime() - now.getTime() < thirtyDaysMs) return true
+  }
+
+  return false
 }
 
 onMounted(() => {
@@ -144,6 +169,13 @@ onMounted(() => {
     })
 
     students.value = loadedStudents;
+
+    if (selectedStudent.value) {
+      const updated = loadedStudents.find(s => s.id === selectedStudent.value?.id)
+      if (updated) {
+        selectedStudent.value = updated
+      }
+    }
   }, (error) => {
     console.error("Error fetching students: ", error.message)
   })

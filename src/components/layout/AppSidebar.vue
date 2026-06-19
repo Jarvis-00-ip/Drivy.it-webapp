@@ -222,10 +222,28 @@ const route = useRoute();
 
 const { isExpanded, isMobileOpen, isHovered, openSubmenu } = useSidebar();
 
-const menuGroups = [
-  {
-    title: "Principale",
-    items: [
+import { useAuthUser } from "@/composables/useAuthUser";
+import { PlugInIcon as UserSettingsIcon } from "../../icons";
+
+const { userRole } = useAuthUser();
+
+const menuGroups = computed(() => {
+  let mainItems = [];
+  if (userRole.value === 'instructor') {
+    mainItems = [
+      {
+        icon: CalenderIcon,
+        name: "Calendario Guide",
+        path: "/calendar",
+      },
+      {
+        icon: UserCircleIcon,
+        name: "Profilo",
+        path: "/profile",
+      }
+    ];
+  } else {
+    mainItems = [
       {
         icon: GridIcon,
         name: "Dashboard",
@@ -241,9 +259,44 @@ const menuGroups = [
         name: "Profilo Autoscuola",
         path: "/profile",
       }
-    ],
+    ];
   }
-];
+
+  const groups = [
+    {
+      title: "Principale",
+      items: mainItems,
+    }
+  ];
+
+  if (userRole.value === 'super_admin') {
+    groups.push({
+      title: "Super Admin",
+      items: [
+        {
+          icon: UserSettingsIcon,
+          name: "Gestione Piattaforma",
+          path: "/platform",
+        }
+      ]
+    });
+  }
+
+  if (userRole.value === 'school_admin' || userRole.value === 'super_admin') {
+    groups.push({
+      title: "Scuola",
+      items: [
+        {
+          icon: UserSettingsIcon,
+          name: "Gestione Staff",
+          path: "/staff",
+        }
+      ]
+    });
+  }
+
+  return groups;
+});
 
 const isActive = (path) => route.path === path;
 

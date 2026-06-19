@@ -8,7 +8,7 @@
       <button
         @click="generateCode"
         :disabled="isGenerating"
-        class="mt-4 sm:mt-0 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50"
+        class="mt-4 sm:mt-0 inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-brand-600 disabled:opacity-50"
       >
         <span v-if="isGenerating">Generazione...</span>
         <span v-else>Genera Nuovo Codice Invito</span>

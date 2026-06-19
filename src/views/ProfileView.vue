@@ -43,7 +43,7 @@
 
           <div class="flex justify-end pt-4 relative">
             <p v-if="successMsg" class="text-success-600 dark:text-success-500 text-sm font-medium absolute left-0 bottom-3">{{ successMsg }}</p>
-            <button type="submit" :disabled="isSaving" class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-6 py-3 text-sm font-medium text-white transition hover:bg-brand-600 disabled:opacity-50">
+            <button type="submit" :disabled="isSaving" class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-6 py-3 text-sm font-medium text-black transition hover:bg-brand-600 disabled:opacity-50">
               {{ isSaving ? 'Salvataggio...' : 'Salva Profilo' }}
             </button>
           </div>

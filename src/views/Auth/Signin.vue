@@ -136,7 +136,7 @@
                             <div
                               :class="
                                 keepLoggedIn
-                                  ? 'border-brand-500 bg-brand-500'
+                                  ? 'border-brand-500 bg-brand-500 text-black'
                                   : 'bg-transparent border-gray-300 dark:border-gray-700'
                               "
                               class="mr-3 flex h-5 w-5 items-center justify-center rounded-md border-[1.25px]"
@@ -173,7 +173,7 @@
                     <div>
                       <button
                         type="submit"
-                        class="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-white transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
+                        class="flex items-center justify-center w-full px-4 py-3 text-sm font-medium text-black transition rounded-lg bg-brand-500 shadow-theme-xs hover:bg-brand-600"
                       >
                         Sign In
                       </button>

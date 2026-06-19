@@ -2,13 +2,24 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h3 class="text-xl font-bold text-gray-900 dark:text-white">Calendario</h3>
-      <button
-        @click="openCreateModal"
-        class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-        Aggiungi Lezione/Guida
-      </button>
+      <div class="flex gap-3">
+        <button
+          @click="approveAllPending"
+          :disabled="isApprovingMassive"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-success-500 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-success-600 disabled:opacity-50"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          <span v-if="isApprovingMassive">Approvazione...</span>
+          <span v-else>Approva in Sospeso</span>
+        </button>
+        <button
+          @click="openCreateModal"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-black transition hover:bg-brand-600"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Aggiungi Lezione/Guida
+        </button>
+      </div>
     </div>
 
     <!-- FullCalendar Wrapper -->
@@ -33,16 +44,54 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { auth, db } from '@/firebase'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import LessonModal from './LessonModal.vue'
 import { seedMockLessonsIfEmpty } from '@/utils/mockLessons'
 
 const calendarRef = ref(null)
 const isModalOpen = ref(false)
-const selectedLesson = ref(null)
+const selectedLesson = ref<any>(undefined)
 const lessons = ref<any[]>([])
+const isApprovingMassive = ref(false)
 
 let unsubscribe: (() => void) | null = null
+
+const approveAllPending = async () => {
+  if (!confirm("Sei sicuro di voler approvare TUTTE le richieste in sospeso compatibili con i posti disponibili?")) return;
+  
+  isApprovingMassive.value = true;
+  try {
+    const promises = [];
+    for (const lesson of lessons.value) {
+      if (lesson.pending_students && lesson.pending_students.length > 0) {
+        const availableSpots = lesson.max_students - (lesson.booked_students?.length || 0);
+        if (availableSpots > 0) {
+          const toApprove = lesson.pending_students.slice(0, availableSpots);
+          const remainingPending = lesson.pending_students.slice(availableSpots);
+          
+          const newBooked = [...(lesson.booked_students || []), ...toApprove];
+          
+          promises.push(updateDoc(doc(db, 'lessons', lesson.id), {
+            booked_students: newBooked,
+            pending_students: remainingPending
+          }));
+        }
+      }
+    }
+    
+    if (promises.length > 0) {
+      await Promise.all(promises);
+      alert(`Approvate con successo le richieste in ${promises.length} lezioni!`);
+    } else {
+      alert("Non ci sono richieste in sospeso approvabili (posti esauriti o nessuna richiesta).");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Errore durante l'approvazione massiva.");
+  } finally {
+    isApprovingMassive.value = false;
+  }
+}
 
 const calendarOptions = computed(() => ({
   plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin],
@@ -82,7 +131,7 @@ const getEventColor = (lesson: any) => {
 }
 
 const openCreateModal = () => {
-  selectedLesson.value = null
+  selectedLesson.value = undefined
   isModalOpen.value = true
 }
 
@@ -93,7 +142,7 @@ const handleEventClick = (info: any) => {
 
 const closeModal = () => {
   isModalOpen.value = false
-  selectedLesson.value = null
+  selectedLesson.value = undefined
 }
 
 onMounted(() => {
