@@ -1,7 +1,7 @@
 import { auth, db } from '@/firebase'
 import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore'
 
-export const seedMockLessonsIfEmpty = async () => {
+export const seedMockLessonsIfEmpty = async (force = false) => {
   const user = auth.currentUser
   if (!user) return
 
@@ -9,8 +9,8 @@ export const seedMockLessonsIfEmpty = async () => {
     const q = query(collection(db, 'lessons'), where('school_id', '==', user.uid))
     const snapshot = await getDocs(q)
     
-    // Se ci sono già più di 10 lezioni, consideriamo il db già popolato
-    if (snapshot.size > 10) return
+    // Se ci sono già più di 10 lezioni e non stiamo forzando, consideriamo il db già popolato
+    if (!force && snapshot.size > 10) return
 
     console.log("Generazione di un set massiccio di mock data (2 mesi)...")
 

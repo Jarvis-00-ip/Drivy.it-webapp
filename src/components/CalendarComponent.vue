@@ -22,6 +22,32 @@
       </div>
     </div>
 
+    <!-- Filtri e Generazione Dati -->
+    <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+      <div class="flex flex-wrap gap-4 items-center">
+        <span class="text-sm font-semibold text-gray-900 dark:text-white">Filtri:</span>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" v-model="filterTeoria" class="rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:bg-gray-900 dark:border-gray-600" />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Teoria</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" v-model="filterGuida" class="rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:bg-gray-900 dark:border-gray-600" />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Guide Pratiche</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" v-model="filterVisita" class="rounded border-gray-300 text-brand-500 focus:ring-brand-500 dark:bg-gray-900 dark:border-gray-600" />
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Visite Mediche</span>
+        </label>
+      </div>
+      <button
+        @click="generateMoreData"
+        class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white transition hover:bg-gray-300 dark:hover:bg-gray-600"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+        Genera Dati Test
+      </button>
+    </div>
+
     <!-- FullCalendar Wrapper -->
     <div class="calendar-wrapper">
       <FullCalendar ref="calendarRef" :options="calendarOptions" />
@@ -54,7 +80,17 @@ const selectedLesson = ref<any>(undefined)
 const lessons = ref<any[]>([])
 const isApprovingMassive = ref(false)
 
+const filterTeoria = ref(true)
+const filterGuida = ref(true)
+const filterVisita = ref(true)
+
 let unsubscribe: (() => void) | null = null
+
+const generateMoreData = async () => {
+  if(confirm("Vuoi generare altri dati mock (lezioni, guide, visite) per i prossimi due mesi?")) {
+    await seedMockLessonsIfEmpty(true);
+  }
+}
 
 const approveAllPending = async () => {
   if (!confirm("Sei sicuro di voler approvare TUTTE le richieste in sospeso compatibili con i posti disponibili?")) return;
@@ -102,7 +138,12 @@ const calendarOptions = computed(() => ({
     right: 'dayGridMonth,timeGridWeek,timeGridDay'
   },
   locale: 'it',
-  events: lessons.value.map(l => ({
+  events: lessons.value.filter(l => {
+    if (l.type === 'lezione' && !filterTeoria.value) return false;
+    if (l.type === 'guida' && !filterGuida.value) return false;
+    if (l.type === 'visita' && !filterVisita.value) return false;
+    return true;
+  }).map(l => ({
     id: l.id,
     title: l.title,
     start: l.start_time?.toDate ? l.start_time.toDate() : l.start_time,
