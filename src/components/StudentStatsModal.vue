@@ -325,13 +325,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, defineAsyncComponent } from 'vue'
 import { db } from '@/firebase'
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteField, where, increment } from 'firebase/firestore'
-import VueApexCharts from 'vue3-apexcharts'
 import flatPickr from 'vue-flatpickr-component'
 import 'flatpickr/dist/flatpickr.css'
 import StudentChat from './StudentChat.vue'
+
+// ApexCharts è pesante: viene caricato solo quando si apre la modale
+const apexchart = defineAsyncComponent(() => import('vue3-apexcharts'))
 
 const props = defineProps({
   isOpen: Boolean,

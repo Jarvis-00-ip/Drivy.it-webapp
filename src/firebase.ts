@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCYwczJCuIQMla0Yfoq2lcoIb8JXkfTvmc",
@@ -15,7 +13,9 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Analytics caricato in differita per non appesantire il bundle iniziale
+import("firebase/analytics").then(({ getAnalytics, isSupported }) =>
+  isSupported().then((ok) => { if (ok) getAnalytics(app) })
+);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
