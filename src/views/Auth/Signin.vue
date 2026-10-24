@@ -180,18 +180,6 @@
                     </div>
                   </div>
                 </form>
-                <div class="mt-5">
-                  <p
-                    class="text-sm font-normal text-center text-gray-700 dark:text-gray-400 sm:text-start"
-                  >
-                    Don't have an account?
-                    <router-link
-                      to="/signup"
-                      class="text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                      >Sign Up</router-link
-                    >
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -206,7 +194,7 @@
                 <img width="{231}" height="{48}" src="/images/logo/auth-logo.svg" alt="Logo" />
               </router-link>
               <p class="text-center text-gray-400 dark:text-white/60">
-                Free and Open-Source Tailwind CSS Admin Dashboard Template
+                Il gestionale per le autoscuole Drivy.it
               </p>
             </div>
           </div>
