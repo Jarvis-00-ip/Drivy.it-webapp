@@ -40,6 +40,7 @@
         </label>
       </div>
       <button
+        v-if="isDev"
         @click="generateMoreData"
         class="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 dark:bg-gray-700 px-4 py-2 text-sm font-medium text-gray-900 dark:text-white transition hover:bg-gray-300 dark:hover:bg-gray-600"
       >
@@ -85,6 +86,9 @@ const filterGuida = ref(true)
 const filterVisita = ref(true)
 
 let unsubscribe: (() => void) | null = null
+
+// I dati di test si possono generare solo in sviluppo locale, mai in produzione
+const isDev = import.meta.env.DEV
 
 const generateMoreData = async () => {
   if(confirm("Vuoi generare altri dati mock (lezioni, guide, visite) per i prossimi due mesi?")) {
@@ -189,9 +193,6 @@ const closeModal = () => {
 onMounted(() => {
   const user = auth.currentUser
   if (!user) return
-
-  // Seed data if empty
-  seedMockLessonsIfEmpty()
 
   const q = query(
     collection(db, 'lessons'),
