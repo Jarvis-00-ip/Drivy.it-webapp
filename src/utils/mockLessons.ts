@@ -2,6 +2,9 @@ import { auth, db } from '@/firebase'
 import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore'
 
 export const seedMockLessonsIfEmpty = async (force = false) => {
+  // Mai scrivere dati finti in produzione
+  if (!import.meta.env.DEV) return
+
   const user = auth.currentUser
   if (!user) return
 
