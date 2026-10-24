@@ -124,6 +124,9 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { auth, db } from '@/firebase'
 import { collection, addDoc, updateDoc, doc, deleteDoc, getDoc, Timestamp, arrayUnion, arrayRemove } from 'firebase/firestore'
+import { useAuthUser } from '@/composables/useAuthUser'
+
+const { schoolId } = useAuthUser()
 
 const props = defineProps({
   isOpen: Boolean,
@@ -199,7 +202,7 @@ const saveLesson = async () => {
   isSaving.value = true
   
   const payload = {
-    school_id: auth.currentUser.uid,
+    school_id: schoolId.value || auth.currentUser.uid,
     title: form.value.title,
     topic: form.value.topic,
     instructor: form.value.instructor,

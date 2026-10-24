@@ -23,6 +23,8 @@ I ruoli possibili sono:
 - `school_admin`: Il ruolo principale per la Web App. Può gestire studenti, crediti, guide e istruttori della propria scuola.
 - `super_admin`: L'amministratore del sistema. Può accedere alla rotta `/platform` per gestire le autoscuole.
 
+**Regole di sicurezza**: i permessi sono applicati lato server da `firestore.rules` (vedi `docs/REGOLE_SICUREZZA.md`), non solo dal router Vue. Il super admin è chi ha un documento `platform_admins/{uid}`: il campo `role` da solo non basta.
+
 ## 2. Collezione Firestore: `users`
 Ogni utente loggato tramite Firebase Auth ha un documento in `users/{uid}`.
 

@@ -73,6 +73,9 @@ import { auth, db } from '@/firebase'
 import { collection, query, where, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import LessonModal from './LessonModal.vue'
 import { seedMockLessonsIfEmpty } from '@/utils/mockLessons'
+import { useAuthUser } from '@/composables/useAuthUser'
+
+const { schoolId } = useAuthUser()
 
 const calendarRef = ref(null)
 const isModalOpen = ref(false)
@@ -195,7 +198,7 @@ onMounted(() => {
 
   const q = query(
     collection(db, 'lessons'),
-    where('school_id', '==', user.uid)
+    where('school_id', '==', schoolId.value || user.uid)
   )
 
   unsubscribe = onSnapshot(q, (snapshot) => {
