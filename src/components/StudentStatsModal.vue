@@ -326,7 +326,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { db } from '@/firebase'
+import { auth, db } from '@/firebase'
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteField, where, increment } from 'firebase/firestore'
 import VueApexCharts from 'vue3-apexcharts'
 import flatPickr from 'vue-flatpickr-component'
@@ -563,6 +563,8 @@ const loadLessons = () => {
 
   const q = query(
     collection(db, 'lessons'),
+    // Il filtro sulla scuola serve alle regole Firestore: si leggono solo le lezioni della propria autoscuola
+    where('school_id', '==', props.student.school_id || auth.currentUser?.uid),
     where('booked_students', 'array-contains', props.student.id)
   )
 

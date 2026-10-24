@@ -113,7 +113,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { auth, db } from '@/firebase'
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
+import { collection, setDoc, getDoc, serverTimestamp, query, where, orderBy, onSnapshot, doc, deleteDoc } from 'firebase/firestore'
 import AdminLayout from '@/components/layout/AdminLayout.vue'
 
 interface InvitationCode {
@@ -147,8 +147,12 @@ const generateCode = async () => {
 
   isGenerating.value = true
   try {
-    const newCode = generateRandomCode()
-    await addDoc(collection(db, 'invitation_codes'), {
+    // L'ID del documento è il codice stesso: così l'app lo legge direttamente e nessuno può elencare i codici
+    let newCode = generateRandomCode()
+    while ((await getDoc(doc(db, 'invitation_codes', newCode))).exists()) {
+      newCode = generateRandomCode()
+    }
+    await setDoc(doc(db, 'invitation_codes', newCode), {
       code: newCode,
       school_id: user.uid,
       created_at: serverTimestamp(),

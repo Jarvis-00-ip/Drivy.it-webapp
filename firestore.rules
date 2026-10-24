@@ -1,0 +1,319 @@
+rules_version = '2';
+
+// Regole di sicurezza Firestore condivise da Web App (gestionale) e App Android.
+// Principio: tutto è vietato, salvo ciò che è permesso esplicitamente qui sotto.
+// I test automatici sono in firestore-tests/ (eseguiti sull'emulatore, mai sul database vero).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Funzioni di supporto ----------
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    // Super admin: esiste un documento platform_admins/{uid}.
+    // Si crea a mano dalla console Firebase; nessun client può scriverlo.
+    function isSuperAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/platform_admins/$(uid()));
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(uid())).data;
+    }
+
+    function myRole() {
+      return me().get('role', 'student');
+    }
+
+    // Autoscuola: l'ID della scuola è l'uid del suo account school_admin.
+    // Un'autoscuola sospesa (isActive == false) perde ogni accesso.
+    function isSchoolAdminOf(schoolId) {
+      return signedIn()
+        && uid() == schoolId
+        && myRole() == 'school_admin'
+        && me().get('isActive', true) != false;
+    }
+
+    function isInstructorOf(schoolId) {
+      return signedIn()
+        && myRole() == 'instructor'
+        && me().get('school_id', '') == schoolId;
+    }
+
+    function isStaffOf(schoolId) {
+      return isSchoolAdminOf(schoolId) || isInstructorOf(schoolId);
+    }
+
+    function isStudentOf(schoolId) {
+      return signedIn()
+        && myRole() == 'student'
+        && me().get('school_id', '') == schoolId;
+    }
+
+    // Campi del profilo che l'utente non può modificare da solo.
+    function protectedUserFields() {
+      return ['role', 'school_id', 'associated_at', 'invitation_code_id',
+              'guide_credits', 'isActive', 'bannedUntil', 'isDeleted',
+              'pink_slip_issue_date', 'medical_cert_expiry'];
+    }
+
+    // Campi che l'autoscuola può modificare sui propri allievi/istruttori.
+    function schoolManagedFields() {
+      return ['guide_credits', 'pink_slip_issue_date', 'medical_cert_expiry',
+              'documents', 'school_id', 'associated_at'];
+    }
+
+    // L'iscrizione a una scuola (o il ruolo istruttore) è valida solo se
+    // l'utente ha davvero riscattato un codice invito di quella scuola.
+    function validInvitation(data) {
+      let code = getAfter(/databases/$(database)/documents/invitation_codes/$(data.invitation_code_id)).data;
+      return code.get('used_by', '') == uid()
+        && code.school_id == data.school_id
+        && code.get('role', 'student') == data.role;
+    }
+
+    // Nessuna differenza, oppure differenza composta solo dall'utente stesso.
+    function onlySelfDiff(before, after) {
+      return after.toSet().difference(before.toSet()).union(
+               before.toSet().difference(after.toSet())
+             ).hasOnly([uid()]);
+    }
+
+    // ---------- Super admin (sola lettura del proprio flag) ----------
+
+    match /platform_admins/{adminId} {
+      allow get: if signedIn() && adminId == uid();
+      allow list, write: if false;
+    }
+
+    // ---------- Utenti ----------
+
+    match /users/{userId} {
+      allow get, list: if isSuperAdmin()
+        || (signedIn() && userId == uid())
+        // Il profilo dell'autoscuola (nome, contatti, isActive) è visibile agli utenti loggati.
+        || (signedIn() && resource.data.get('role', '') == 'school_admin')
+        // L'autoscuola e i suoi istruttori vedono allievi e istruttori della scuola.
+        || isStaffOf(resource.data.get('school_id', '__none__'));
+
+      allow create: if isSuperAdmin()
+        || (userId == uid() && (
+              // Registrazione semplice: allievo senza scuola.
+              (request.resource.data.get('role', 'student') == 'student'
+                && !request.resource.data.keys().hasAny(protectedUserFields().removeAll(['role'])))
+              // Registrazione con codice invito.
+              || (request.resource.data.keys().hasAll(['role', 'school_id', 'invitation_code_id'])
+                && !request.resource.data.keys().hasAny(['guide_credits', 'isActive', 'bannedUntil', 'isDeleted'])
+                && validInvitation(request.resource.data))
+           ));
+
+      allow update: if isSuperAdmin()
+        // L'utente modifica il proprio profilo, ma non i campi protetti...
+        || (userId == uid()
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedUserFields()))
+        // ...salvo l'iscrizione a una scuola tramite codice invito.
+        || (userId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['role', 'school_id', 'associated_at', 'invitation_code_id',
+                           'email', 'displayName', 'firstName', 'lastName', 'last_login'])
+            && validInvitation(request.resource.data))
+        // L'autoscuola gestisce i propri allievi e istruttori (crediti, scadenze, documenti).
+        // Può solo scollegarli, non spostarli in un'altra scuola.
+        || (isSchoolAdminOf(resource.data.get('school_id', '__none__'))
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(schoolManagedFields())
+            && (!('school_id' in request.resource.data)
+                || request.resource.data.school_id == resource.data.school_id));
+
+      allow delete: if isSuperAdmin();
+
+      // Statistiche di studio: proprietario, staff della scuola, oppure
+      // chiunque se l'utente ha scelto di condividere le statistiche.
+      match /quiz_results/{docId} {
+        allow read: if signedIn() && (userId == uid()
+          || isSuperAdmin()
+          || isStaffOf(get(/databases/$(database)/documents/users/$(userId)).data.get('school_id', '__none__')));
+        allow write: if signedIn() && userId == uid();
+      }
+
+      match /progress/{docId} {
+        allow read: if signedIn() && (userId == uid()
+          || isSuperAdmin()
+          || isStaffOf(get(/databases/$(database)/documents/users/$(userId)).data.get('school_id', '__none__'))
+          || get(/databases/$(database)/documents/public_profiles/$(userId)).data.get('shareStats', false) == true);
+        allow write: if signedIn() && userId == uid();
+      }
+
+      // Dati anagrafici: visibili agli altri solo se l'utente li condivide
+      // (l'app Android impedisce la condivisione ai minorenni).
+      match /profile/{docId} {
+        allow read: if signedIn() && (userId == uid()
+          || isSuperAdmin()
+          || resource.data.get('sharePersonalData', false) == true);
+        allow write: if signedIn() && userId == uid();
+      }
+
+      match /garage/{docId} {
+        allow read: if signedIn() && (userId == uid()
+          || get(/databases/$(database)/documents/public_profiles/$(userId)).data.get('shareVehicle', false) == true);
+        allow write: if signedIn() && userId == uid();
+      }
+    }
+
+    // Profilo pubblico per la community (solo dati non sensibili).
+    match /public_profiles/{userId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && userId == uid()
+        && request.resource.data.keys().hasOnly(
+             ['displayName', 'communityOnboarded', 'shareVehicle', 'shareStats', 'vehicle', 'updated_at']);
+      allow delete: if isSuperAdmin();
+    }
+
+    // ---------- Codici invito ----------
+    // L'ID del documento è il codice stesso: chi conosce il codice può leggerlo,
+    // ma nessuno può elencare i codici di altre scuole.
+
+    match /invitation_codes/{code} {
+      allow get: if signedIn();
+      allow list: if isSuperAdmin() || isSchoolAdminOf(resource.data.school_id);
+
+      allow create: if isSchoolAdminOf(request.resource.data.school_id)
+        && request.resource.data.code == code
+        && request.resource.data.is_active == true
+        && request.resource.data.get('role', 'student') in ['student', 'instructor']
+        && !request.resource.data.keys().hasAny(['used_by', 'used_at']);
+
+      // Riscatto: chiunque sia loggato può "bruciare" un codice attivo, a proprio nome.
+      allow update: if signedIn()
+        && resource.data.is_active == true
+        && request.resource.data.is_active == false
+        && request.resource.data.used_by == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['is_active', 'used_by', 'used_at']);
+
+      allow delete: if isSuperAdmin() || isSchoolAdminOf(resource.data.school_id);
+    }
+
+    // ---------- Lezioni ----------
+
+    match /lessons/{lessonId} {
+      allow read: if isSuperAdmin()
+        || isStaffOf(resource.data.school_id)
+        || isStudentOf(resource.data.school_id);
+
+      allow create: if isStaffOf(request.resource.data.school_id);
+
+      allow update: if isSuperAdmin()
+        || (isStaffOf(resource.data.school_id)
+            && request.resource.data.school_id == resource.data.school_id)
+        // L'allievo può solo aggiungere/togliere sé stesso.
+        // Le guide richiedono approvazione (pending); alle lezioni di gruppo si prenota direttamente.
+        || (isStudentOf(resource.data.school_id)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pending_students', 'booked_students'])
+            && onlySelfDiff(resource.data.get('pending_students', []), request.resource.data.get('pending_students', []))
+            && onlySelfDiff(resource.data.get('booked_students', []), request.resource.data.get('booked_students', []))
+            && (resource.data.get('type', '') == 'lezione'
+                || !request.resource.data.get('booked_students', []).toSet()
+                      .difference(resource.data.get('booked_students', []).toSet()).hasAny([uid()]))
+            && (request.resource.data.get('booked_students', []).size() <= resource.data.get('booked_students', []).size()
+                || request.resource.data.get('booked_students', []).size() <= resource.data.get('max_students', 1)));
+
+      allow delete: if isSuperAdmin() || isStaffOf(resource.data.school_id);
+    }
+
+    // ---------- Notifiche per l'autoscuola ----------
+
+    match /notifications/{notificationId} {
+      allow read: if isSuperAdmin() || isSchoolAdminOf(resource.data.school_id);
+
+      // Un allievo può notificare solo la propria scuola, a proprio nome.
+      allow create: if signedIn()
+        && request.resource.data.student_uid == uid()
+        && request.resource.data.school_id == me().get('school_id', '__none__')
+        && request.resource.data.read == false;
+
+      // L'autoscuola può solo segnarle come lette.
+      allow update: if isSchoolAdminOf(resource.data.school_id)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if isSuperAdmin() || isSchoolAdminOf(resource.data.school_id);
+    }
+
+    // ---------- Chat allievo / autoscuola ----------
+    // ID chat = "{studentId}_{schoolId}".
+
+    match /chats/{chatId} {
+      function chatStudent() {
+        return chatId.split('_')[0];
+      }
+      function chatSchool() {
+        return chatId.split('_')[1];
+      }
+      function isChatMember() {
+        return signedIn() && chatId.split('_').size() == 2 && (
+          uid() == chatStudent()
+          || isStaffOf(chatSchool())
+        );
+      }
+
+      allow read, write: if isChatMember();
+
+      match /messages/{messageId} {
+        allow read: if isChatMember() || isSuperAdmin();
+        allow create: if isChatMember()
+          // Mittente coerente con chi scrive (formato App: senderId; formato Web: sender).
+          && (!('senderId' in request.resource.data) || request.resource.data.senderId == uid())
+          && (!('sender' in request.resource.data)
+              || (request.resource.data.sender == 'student' && uid() == chatStudent())
+              || (request.resource.data.sender == 'school' && isStaffOf(chatSchool())));
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- Teoria (contenuti) ----------
+
+    match /teoria_patente/{chapterId} {
+      allow read: if signedIn();
+      allow write: if isSuperAdmin();
+    }
+
+    // ---------- Community ----------
+
+    match /social_posts/{postId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn()
+        && request.resource.data.authorId == uid()
+        && request.resource.data.get('upvotes', 0) == 0
+        && request.resource.data.get('commentCount', 0) == 0
+        && request.resource.data.get('upvotedBy', []).size() == 0;
+
+      allow update: if isSuperAdmin()
+        // Voto: ognuno aggiunge/toglie solo il proprio.
+        || (signedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy'])
+            && onlySelfDiff(resource.data.get('upvotedBy', []), request.resource.data.upvotedBy)
+            && (request.resource.data.upvotes - resource.data.get('upvotes', 0)) in [1, -1])
+        // Contatore commenti: +1 alla volta.
+        || (signedIn()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
+            && request.resource.data.commentCount == resource.data.get('commentCount', 0) + 1);
+
+      allow delete: if isSuperAdmin() || (signedIn() && resource.data.authorId == uid());
+
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.authorId == uid();
+        allow update: if false;
+        allow delete: if isSuperAdmin() || (signedIn() && resource.data.authorId == uid());
+      }
+    }
+
+    // Tutto ciò che non è elencato sopra resta vietato.
+  }
+}

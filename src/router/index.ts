@@ -61,7 +61,8 @@ const router = createRouter({
       meta: {
         title: 'Gestione Piattaforma',
         requiresAuth: true,
-        requiresAdmin: true
+        requiresAdmin: true,
+        requiresSuperAdmin: true
       },
     }
   ],
@@ -73,6 +74,7 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
   const requiresGuest = to.matched.some(record => record.meta.requiresGuest);
   const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin);
+  const requiresSuperAdmin = to.matched.some(record => record.meta.requiresSuperAdmin);
 
   // Attende che l'auth Firebase + la fetch del documento Firestore siano completati
   await authReady;
@@ -90,6 +92,9 @@ router.beforeEach(async (to, from, next) => {
     } else if (userRole.value === 'instructor' && (requiresAdmin || to.path === '/')) {
       // Istruttori non possono vedere la dashboard principale ne la gestione staff
       next('/calendar');
+    } else if (requiresSuperAdmin && userRole.value !== 'super_admin') {
+      // Il pannello piattaforma è riservato al super admin
+      next('/');
     } else {
       next();
     }
